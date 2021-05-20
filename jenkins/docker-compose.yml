@@ -1,0 +1,23 @@
+version: "3"
+networks:
+  jenkins:
+    external: false
+
+services:
+  jenkins-ci-server:
+    container_name: 'jenkins-ci-server'
+    build:
+      context: ./
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+    restart: always
+    networks:
+      - jenkins
+    volumes:
+      - /var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "8080:8080"

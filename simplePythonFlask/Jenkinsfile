@@ -1,0 +1,74 @@
+pipeline {
+
+  agent any
+
+  options {
+    timestamps()
+  }
+
+  environment {
+    IMAGE_NAME="simple-flask-app"
+    IMAGE_TAG="0.${BUILD_ID}"
+    CONTAINER_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
+    DOCKER_REGISTRY="http://192.168.88.20:8082"
+  }
+
+  stages {
+    stage('Build && Unit Test') {
+      steps {
+	script {
+	  image = docker.build("${CONTAINER_IMAGE}")
+	  image.inside("-v ${WORKSPACE}:/simplePythonApplication") {
+	    sh "nosetests --with-xunit --cover-package=project test_users.py"
+	  }
+	}
+      }
+    }
+
+    stage('Code Analysis'){
+      steps {
+	script {
+	  def sonarScannerPath = tool 'SonarScanner'
+	  withSonarQubeEnv('SonarQube') {
+	    sh "${sonarScannerPath}/bin/sonar-scanner -Dsonar.projectKey=simple-flask-app -Dsonar.sources=."
+	  }
+	}
+      }
+    }
+
+    stage('Code Analysis Result'){
+      steps {
+	timeout(1) {
+          waitForQualityGate abortPipeline: true
+        }
+      }
+    }
+
+    stage('Push docker image') {
+      steps{
+	script{
+	  docker.withRegistry("${DOCKER_REGISTRY}", "6102c416-ea92-46a5-835c-7e874bd13b7c") {
+	    image.push()
+	  }
+	}
+      }
+    }
+
+  }
+
+  post {
+    success {
+      echo "Pipeline finalizada com sucesso!!!"
+    }
+    failure {
+      echo "Pipeline falhou >.<"
+    }
+    always {
+      junit 'nosetests.xml'
+    }
+    cleanup {
+      sh "docker image rmi ${CONTAINER_IMAGE}"
+    }
+  }
+
+}
